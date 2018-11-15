@@ -13,9 +13,9 @@ Once Installed, for the initial setup, you will need to
 $ pip3 install curses-menu
 $ pip3 install wget
 $ pip3 install python-slugify
-$ 
 ```
 
 ### Usage example
 
+![Screenshot](howtostart.png)
 
