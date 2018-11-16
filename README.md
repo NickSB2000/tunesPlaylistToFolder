@@ -20,8 +20,15 @@ $ pip3 install python-slugify
 ```
 
 ### Usage example
-
+To Start it
 ![Screenshot](howtostart.png)
+
+Then if the itunes library XML master plist is ay the default place, you should see:
+![Screenshot](pickplaylist.png)
+
+Then your folder will be created/built on the desktop: 
+> Note that URL playlist items will be downloaded, and local files copied, and files that do not exist will be skipped.
+![Screenshot](builfolder.png)
 
 License
 ----
