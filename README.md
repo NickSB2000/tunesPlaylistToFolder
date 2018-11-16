@@ -1,5 +1,9 @@
 # tunesPlaylistToFolder
-Python script Copy an itunes Playlist to a Folder on your Desktop that will be played in the correct order
+Python script to copy an itunes Playlist to a Folder on your Desktop. 
+
+Files will be played in the same order as the playlist because they will be prepended with numbers.
+
+> This is a minimum viable product, Please contribute and make suggestions to improve it, as long as you don't break the defalt worflow.
 
 ### Installation
 
