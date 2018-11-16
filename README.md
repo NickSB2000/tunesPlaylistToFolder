@@ -1,6 +1,7 @@
 # tunesPlaylistToFolder
 Python script to copy an itunes Playlist file content to a Folder on your Desktop.
-(usefull for creating Media CDs and USB Key for Cars)
+
+(usefull for creating Audio Media CDs or MP3 USB Keys for your cars)
 
 Files will be played in the same order as the playlist because they will be prepended with numbers.
 
