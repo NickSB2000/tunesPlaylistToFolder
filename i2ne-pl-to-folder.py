@@ -2,11 +2,15 @@
 
 import os
 import sys
+import glob
+import shlex
 import shutil
 import plistlib
 import subprocess
 
 from urllib.parse import urlparse, unquote
+
+FNULL = open(os.devnull, 'w')
 
 # Import the necessary packages
 try:
@@ -28,6 +32,9 @@ except:
   print('Error: please : pip3 install python-slugify')
   sys.exit(1)
 
+def osCommand(command):
+  return subprocess.run(command, stdout=subprocess.PIPE, stderr=FNULL).stdout.decode('utf-8').strip()
+
 def path_to_cygwin(inpath):
   if inpath.startswith('/'):
     INPATH = inpath[1:]
@@ -37,7 +44,7 @@ def path_to_cygwin(inpath):
     commd = ["cygpath.exe", "-D"]
   else:
     commd = ["cygpath.exe", "-u", INPATH ]
-  thePath = subprocess.run(commd, stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
+  thePath = osCommand(commd)
   return (os.path.isfile(thePath), thePath)
 
 status , userpath = path_to_cygwin(os.environ['USERPROFILE'])
@@ -54,6 +61,8 @@ selection_menu.show()
 
 SelectedPlaylist = plist['Playlists'][selection_menu.returned_value]['Name']
 trackList = plist['Playlists'][selection_menu.returned_value]['Playlist Items']
+#print(plist['Playlists'][selection_menu.returned_value])
+
 
 folderCounter = 0
 exist, desktopFolder = path_to_cygwin('Desktop')
@@ -85,7 +94,22 @@ for item in trackList:
   if url_OBJ.scheme.lower() == 'file':
     ifexist, LOCATION = path_to_cygwin(unquote(url_OBJ.path))
     EXTENSION = os.path.splitext(LOCATION)[1]
-    if not ifexist: LOCATION = "NOT FOUND"
+    if not ifexist:
+      print()
+      print(" Oups File not found: %s" % LOCATION) 
+      print(" Trying to find it.. It could be on a differernt drive..")
+      searchresult = ''
+      for drive in glob.glob('/cygdrive/*'):
+        print(" Trying to find it on drive '%s', one moment.. " % drive)
+        searchCommand = 'find %s -type f -name "%s" -print -quit' % (drive, os.path.basename(LOCATION))
+        #print(searchCommand)
+        searchresult = osCommand(shlex.split(searchCommand)) 
+        if os.path.isfile(searchresult):
+          print(" ---> FOUND: %s " % searchresult)
+          LOCATION = searchresult
+          break
+      if searchresult == '':
+        LOCATION = "NOT FOUND"
   elif url_OBJ.scheme.lower().startswith('http'):
     LOCATION  = plist['Tracks'][TRACK]['Location']
     EXTENSION = os.path.splitext(url_OBJ.path)[1]
@@ -93,9 +117,10 @@ for item in trackList:
     LOCATION = "NOT DETECTED"
   newFileName = "%04d__%s_%s_%s%s" % (counter, trackName, trackArtist, trackAlbum, EXTENSION)
   if LOCATION.startswith('NOT'):
-    print(" Can't copy File: '%s' Not Found: '%s'" % (newFileName, LOCATION))
+    print(" Can't create File: '%s' Reason: '%s'" % (newFileName, LOCATION))
     continue
-  print(" Working on: %s" % LOCATION)
+  print(" Copying   : %s" % LOCATION)
+  print(" New file  : %s\n" % newFileName)
   if LOCATION.startswith('http'):
     wget.download(LOCATION, out=os.path.join(PLAYLIST_FOLDER, newFileName))
     print()
