@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 
 import os
 import sys
@@ -31,7 +30,7 @@ try:
   from cursesmenu import *
   from cursesmenu.items import *
 except:
-  print('Error: from command prompt as admin : pip install curses-menu')
+  print('Error: from command prompt as admin : pip install windows-curses')
   input()
   sys.exit(1)
 
@@ -177,7 +176,7 @@ def findAllNameComponentsFromTrack(item=dict(), plist=dict(), counter=0):
     trackAlbum  = "_"
   return (componentTest, TRACK, URIlocation, trackName, trackArtist, trackAlbum)
 
-def findTheBloodyTrack(plist=dict(), speculativeDrive='', TRACK=''):
+def findTheBloodyTrack(plist=dict(), speculativeDrive='', TRACK='', debug=False):
   EXTENSION = ''
   LOCATION  = ''
   FOUND_SUCCESS = False
@@ -211,11 +210,15 @@ def findTheBloodyTrack(plist=dict(), speculativeDrive='', TRACK=''):
       if searchresult == '':  
         LOCATION = "NOT FOUND"
         #sys.exit()
+    else:
+      FOUND_SUCCESS = True
   elif url_OBJ.scheme.lower().startswith('http'):
     LOCATION  = plist['Tracks'][TRACK]['Location']
     EXTENSION = os.path.splitext(url_OBJ.path)[1]
   else:
     LOCATION = "NOT DETECTED"        
+  if debug:
+    print("FOUND_SUCCESS %s | speculativeDrive %s | LOCATION %s | EXTENSION %s" % (FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION))
   return (FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION) 
 
 def ffmpegUtilsFinder():
@@ -307,7 +310,7 @@ def main():
         time.sleep(5)
         continue
       
-      FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION = findTheBloodyTrack(plist=plist, speculativeDrive=speculativeDrive, TRACK=TRACK)
+      FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION = findTheBloodyTrack(plist=plist, speculativeDrive=speculativeDrive, TRACK=TRACK, debug=True)
       
       newFileName = "%04d__%s_%s_%s%s" % (counter, trackName, trackArtist, trackAlbum, EXTENSION)
       
