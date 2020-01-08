@@ -12,12 +12,6 @@ import pickle
 
 from urllib.parse import urlparse, unquote
 
-# we need a /dev/null
-FNULL = open(os.devnull, 'w')
-
-# Path of current file for options
-picklePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "opts.pkl")
-
 # Import the necessary packages and give nice errors
 try:
   import eyed3
@@ -51,10 +45,7 @@ except:
 
 #-----------------
 
-
-#-----------------
-
-
+FNULL = open(os.devnull, 'w')
 
 # Functions()
 def osCommand(command):
@@ -62,15 +53,12 @@ def osCommand(command):
 
 def path_resolver(inpath):
   if inpath.lower().startswith('desktop'):
-    wdesktopPath = os.path.join(os.environ["HOMEPATH"], "Desktop")
+    wdesktopPath = os.path.join(os.environ["USERPROFILE"], "Desktop")
     return (os.path.isdir(wdesktopPath), wdesktopPath)
   if inpath.startswith('/'):
     return (os.path.isfile(inpath[1:]), inpath[1:])
   else:
     return (os.path.isfile(inpath), inpath)
-
-def path_to_windows(inpath):
-  return inpath
 
 def get_drives():
   import ctypes
@@ -90,7 +78,7 @@ def find_ffmpeg_locations(drive='c'):
   return approvedl
 
 def getFormatInfo(ffprobeLocation='', inPath='', debug=True):
-  winPathDestination = path_to_windows(inPath)
+  winPathDestination = inPath
   ffCommand = ffprobeLocation + ' -v quiet -print_format json -show_format -show_streams "%s"' % winPathDestination
   osCmdOutputJSON   = osCommand(ffCommand)
   osCmdOutputPYTHON = json.loads(osCmdOutputJSON)
@@ -98,42 +86,50 @@ def getFormatInfo(ffprobeLocation='', inPath='', debug=True):
     formatName = osCmdOutputPYTHON['format']['format_name']
   except:
     formatName = 'unknown'
-  if debug: print(" Format    : %s" % formatName)
+  if debug: print(" Format is : %s" % formatName)
   return formatName
 
-def convertToMP3(ffprobeLocation='', inPath='', debug=True):
-  winPathDestination    = path_to_windows(inPath)
+def convertToMP3(ffmpegLocation='', inPath='', debug=True):
+  winPathDestination    = inPath
   inPathNoExt, exten    = os.path.splitext(inPath)
   inPathMP3             = inPathNoExt + '.mp3'
-  winPathDestinationMP3 = path_to_windows(inPathMP3)
+  winPathDestinationMP3 = inPathMP3
   if debug: print(" Converting: %s" % inPathMP3)
   ffCommand = ffmpegLocation + ' -threads 0 -i "%s" "%s"' % (winPathDestination, winPathDestinationMP3 )
-  subprocess.run(ffCommand)
+  #Debugging:#subprocess.run(ffCommand)
+  osCommand(ffCommand)
   # removing the non-mp3 file
   os.remove(inPath)
   return inPathMP3
 
 def extractAlbumArtJPG(ffmpegLocation='', inPath='', debug=True):
   if debug: print(" Extracting Album Art..")
-  winPathDestination = path_to_windows(inPath)
+  winPathDestination = inPath
   extrCmd = ffmpegLocation + ' -i "%s" "%s.jpg"' % (winPathDestination, winPathDestination)
   osCommand(extrCmd)
 
 def insertAlbumArt(ffmpegLocation='', inPath='', outPath='', debug=True):
-  if debug: print(" Retaking Album art only..")
-  if os.path.exists(inPath + '.jpg'):
-    finalInsertCmd = ffmpegLocation + ' -i "%s" -i "%s.jpg" -map 0:0 -map 1:0 -c copy -id3v2_version 3 -metadata:s:v title="Album cover" -metadata:s:v comment="Cover (front)" "%s"' % (path_to_windows(inPath), path_to_windows(inPath), path_to_windows(outPath))
+  art = inPath + '.jpg'
+  if not os.path.exists(art):
+    art = outPath + '.jpg'
+  if os.path.exists(art):
+    if debug: print(" Retaking Album art only..")
+    finalInsertCmd = ffmpegLocation + ' -i "%s" -i "%s" -map 0:0 -map 1:0 -c copy -id3v2_version 3 -metadata:s:v title="Album cover" -metadata:s:v comment="Cover (front)" "%s"' % (inPath, art, outPath)
     osCommand(finalInsertCmd)
     # removing album art jpg, not needed anymore
-    os.remove(MP3itemSavePath + '.jpg')
+    os.remove(art)
+    # removing input path, not needed anymore
+    os.remove(inPath)
   else:
-    if debug: print(" No Album art was available... just renaming file..")
+    if debug: print(" No Album art was available: %s\n just renaming file.." % art)
     os.rename(inPath, outPath)    
 
 def mp3TagRemover(ffmpegLocation='', inPath='', outPath='', debug=True):
-  if debug: print(" Removing All Tags..")
-  ffCommand = ffmpegLocation + ' -i "%s" -vn -codec:a copy -map_metadata -1 "%s"' % (path_to_windows(inPath), path_to_windows(outPath) )
+  if debug: 
+    print(" No Tags   : %s" % outPath) 
+  ffCommand = ffmpegLocation + ' -i "%s" -vn -codec:a copy -map_metadata -1 "%s"' % (inPath, outPath)
   osCommand(ffCommand)
+  
 
 def findDirectoryForFinalPlaylist(outDirectory='', SelectedPlaylist=''):
   folderCounter = 0
@@ -221,7 +217,7 @@ def findTheBloodyTrack(plist=dict(), speculativeDrive='', TRACK='', debug=False)
     print("FOUND_SUCCESS %s | speculativeDrive %s | LOCATION %s | EXTENSION %s" % (FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION))
   return (FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION) 
 
-def ffmpegUtilsFinder():
+def ffmpegUtilsFinder(picklePath=''):
   foundFFbin = False
   ffmpegLocation = ''
   ffprobeLocation = ''
@@ -246,23 +242,33 @@ def ffmpegUtilsFinder():
     if ffmpegLocations.__len__() == 1:
       ffmpegLocation = ffmpegLocations[0]
     else:
-      selection = SelectionMenu(ffmpegLocations, title='Which one do you choose?', subtitle='Please Select one:')
-      selection.show()
-      ffmpegLocation  = ffmpegLocations[selection.returned_value]
-      ffprobeLocation = os.path.join(os.path.dirname(ffmpegLocation), "ffprobe.exe")
+      if os.path.exists(picklePath + 'l'):
+        ffmpegLocation, ffprobeLocation = pickle.load( open(picklePath + 'l', "rb" ) )
+      else:
+        selection = SelectionMenu(ffmpegLocations, title='Which one do you choose?', subtitle='Please Select one:')
+        selection.show()
+        ffmpegLocation  = ffmpegLocations[selection.returned_value]
+        ffprobeLocation = os.path.join(os.path.dirname(ffmpegLocation), "ffprobe.exe")
     if not os.path.exists(ffmpegLocation):
-      print(" Okay, well, seems like that ffmpeg binary is gone, try again..")
+      print(" Okay, well, seems like that ffmpeg binary is not there, try again..")
+      os.remove(picklePath)
+    elif not os.path.exists(ffprobeLocation):
+      print(" Okay, well, seems like that ffprobe binary is not included, try again..")
       os.remove(picklePath)
     else:
       foundFFbin = True
+      pickle.dump((ffmpegLocation, ffprobeLocation), open(picklePath + 'l', "wb" ) )
   return (foundFFbin, ffmpegLocation, ffprobeLocation)
 
 
 # -----------------------------------------------------------------------------------------------------------------------
 
 def main():
+  # Path of current file for options
+  picklePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "opts.pkl")
+
   # need to have windows version of ffmpeg utils installed
-  foundFFbin, ffmpegLocation, ffprobeLocation = ffmpegUtilsFinder()
+  foundFFbin, ffmpegLocation, ffprobeLocation = ffmpegUtilsFinder(picklePath=picklePath)
 
   # Default location of Itunes library, for now I assume it's there
   status , userpath = path_resolver(os.environ['USERPROFILE'])
@@ -271,86 +277,91 @@ def main():
 
   # this program can't continue if I do not find the itunes xml library
   if not os.path.isfile(itunesDefaultLibrary):
-    print("\nError: Itunes Library File '%s' not found\nAborting!\n" % itunesDefaultLibrary)
+    print("\nError: Itunes Library File '%s' not found\n" % itunesDefaultLibrary)
+    print("Or, verify if Itunes has the XML sharing option enabled.\n")
+    print("Aborting!\n")
     sys.exit()
 
   # Loading the XML into a parser for python
-  plist = plistlib.readPlist(itunesDefaultLibrary)
+  with open(itunesDefaultLibrary, 'rb') as f:
+    plist = plistlib.load(f)
 
   # Getting the playlists names 
   playlists = []
   for plObj in plist['Playlists']:
     playlists.append(plObj['Name'])
 
-  while True:  
-    selection_menu = SelectionMenu(playlists, title=itunesDefaultLibrary, subtitle='Please Select a Library:')
-    selection_menu.show()
+  # Selecting
+  selection_menu = SelectionMenu(playlists, title=itunesDefaultLibrary, subtitle='Please Select a Library:')
+  selection_menu.show()
 
-    try:
-      SelectedPlaylist = plist['Playlists'][selection_menu.returned_value]['Name']
-      trackList = plist['Playlists'][selection_menu.returned_value]['Playlist Items']
-      #print(plist['Playlists'][selection_menu.returned_value])
-    except:
-      # if you're here, means that you've hit exit at the selection menu
-      sys.exit(0)
+  try:
+    SelectedPlaylist = plist['Playlists'][selection_menu.returned_value]['Name']
+    trackList = plist['Playlists'][selection_menu.returned_value]['Playlist Items']
+    #print(plist['Playlists'][selection_menu.returned_value])
+  except:
+    # if you're here, means that you've hit exit at the selection menu
+    sys.exit(0)
 
-    # Finding a perfect directory name for the re-worked playlist
-    PLAYLIST_FOLDER = findDirectoryForFinalPlaylist(SelectedPlaylist=SelectedPlaylist)
-    os.mkdir(PLAYLIST_FOLDER)
-    print("\n Playlist will be saved to:\n '%s'\n" % PLAYLIST_FOLDER)
+  # Finding a perfect directory name for the re-worked playlist
+  PLAYLIST_FOLDER = findDirectoryForFinalPlaylist(SelectedPlaylist=SelectedPlaylist)
+  os.mkdir(PLAYLIST_FOLDER)
+  print("\n Playlist will be saved to:\n '%s'\n" % PLAYLIST_FOLDER)
+  time.sleep(1)
+  # an other for loop for every track found to be renamed, copied, checked and prepared  
+  counter = 0
+  speculativeDrive = ''
+  for item in trackList:
+    counter += 1
+    componentTest, TRACK, URIlocation, trackName, trackArtist, trackAlbum = findAllNameComponentsFromTrack(item=item, plist=plist, counter=counter)
+    if componentTest == False:
+      print(" Warning: Track '%s' for playlist '%s' has an issue, can't find URL location" % (trackName, SelectedPlaylist))
+      time.sleep(5)
+      continue
     
-    # an other for loop for every track found to be renamed, copied, checked and prepared  
-    counter = 0
-    speculativeDrive = ''
-    for item in trackList:
-      counter += 1
-      componentTest, TRACK, URIlocation, trackName, trackArtist, trackAlbum = findAllNameComponentsFromTrack(item=item, plist=plist, counter=counter)
-      if componentTest == False:
-        print(" Warning: Track '%s' for playlist '%s' has an issue, can't find URL location" % (trackName, SelectedPlaylist))
-        time.sleep(5)
-        continue
-      
-      FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION = findTheBloodyTrack(plist=plist, speculativeDrive=speculativeDrive, TRACK=TRACK, debug=True)
-      
-      newFileName = "%04d__%s_%s_%s%s" % (counter, trackName, trackArtist, trackAlbum, EXTENSION)
-      
-      if LOCATION.startswith('NOT') or FOUND_SUCCESS == False:
-        print(" Can't create File: '%s' Location: '%s' ..skipping.." % (newFileName, LOCATION))
-        time.sleep(5)
-        continue
-      
-      print(" Copying   : %s" % LOCATION)
-      print(" New file  : %s" % newFileName)
-      
-      MP3itemSavePath             = os.path.join(PLAYLIST_FOLDER, newFileName)
-      MP3itemSavePathNoExt, exten = os.path.splitext(MP3itemSavePath)
-      MP3itemSavePathMP3          = MP3itemSavePathNoExt + '.mp3'
-      newFileName                 = os.path.basename(MP3itemSavePathMP3).replace('__','___')
-      newFileNamePath             = os.path.join(PLAYLIST_FOLDER, newFileName)
+    FOUND_SUCCESS, speculativeDrive, LOCATION, EXTENSION = findTheBloodyTrack(plist=plist, speculativeDrive=speculativeDrive, TRACK=TRACK, debug=False)
+    
+    newFileName = "%04d__%s_%s_%s%s" % (counter, trackName, trackArtist, trackAlbum, EXTENSION)
+    
+    if LOCATION.startswith('NOT') or FOUND_SUCCESS == False:
+      print(" Can't create File: '%s' Location: '%s' ..skipping.." % (newFileName, LOCATION))
+      time.sleep(5)
+      continue
+    
+    MP3itemSavePath             = os.path.join(PLAYLIST_FOLDER, newFileName)
+    MP3itemSavePathNoExt, exten = os.path.splitext(MP3itemSavePath)
+    MP3itemSavePathMP3          = MP3itemSavePathNoExt + '.mp3'
+    newFileName                 = os.path.basename(MP3itemSavePathMP3).replace('__','___')
+    newFileNamePath		= os.path.join(PLAYLIST_FOLDER, newFileName)
+    
+    #print(" playlistf : %s" % PLAYLIST_FOLDER)
+    print(" Copying   : %s" % LOCATION)
+    print(" New file  : %s" % newFileName)
 
-      # If playlist item is actually a real online URL, just download it
-      if LOCATION.startswith('http'):
-        print('  ', end='', flush=True)
-        #FIXME: Need to adress the case when it's unreacheable
-        wget.download(LOCATION, out=MP3itemSavePath)
-        print()
-      else:
-        shutil.copy2(LOCATION, MP3itemSavePath)
-      # Need to know if this is actually a MP3 file or not.
-      formatName = getFormatInfo(ffprobeLocation=ffprobeLocation, inPath=MP3itemSavePath, debug=True)
-      # If this is nor a MP3 file, well, let's convert it
-      if formatName.lower() != 'mp3':
-        MP3itemSavePath = convertToMP3(ffprobeLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True)
-      # Attempt to extract the album art as a JPG file if one is present
-      extractAlbumArtJPG(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True)
-      # While removing tag we are now saving to a new file name called : newFileNamePath
-      mp3TagRemover(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, outPath=newFileNamePath, debug=True)
-      # removing the original tagged MP3 file
-      os.remove(MP3itemSavePath)
-      # Attempt at re-inserting album art if it's available and save it to MP3itemSavePath
-      insertAlbumArt(ffmpegLocation=ffmpegLocation, inPath=newFileNamePath, outPath=MP3itemSavePath, debug=True)
-      print('\n') 
-   
+    # If playlist item is actually a real online URL, just download it
+    if LOCATION.startswith('http'):
+      print('  ', end='', flush=True)
+      #FIXME: Need to adress the case when it's unreacheable
+      wget.download(LOCATION, out=MP3itemSavePath)
+      print()
+    else:
+      shutil.copy2(LOCATION, MP3itemSavePath)
+    # Need to know if this is actually a MP3 file or not.
+    formatName = getFormatInfo(ffprobeLocation=ffprobeLocation, inPath=MP3itemSavePath, debug=True)
+    # If this is nor a MP3 file, well, let's convert it
+    if formatName.lower() != 'mp3':
+      MP3itemSavePath = convertToMP3(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True)
+    # Attempt to extract the album art as a JPG file if one is present
+    extractAlbumArtJPG(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True)
+    # While removing tag we are now saving to a new file name called : newFileNamePath
+    mp3TagRemover(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, outPath=newFileNamePath, debug=True)
+    # removing the original tagged MP3 file
+    print(" Removing  : %s" % MP3itemSavePath)
+    os.remove(MP3itemSavePath)
+    # Attempt at re-inserting album art if it's available and save it to MP3itemSavePath
+    insertAlbumArt(ffmpegLocation=ffmpegLocation, inPath=newFileNamePath, outPath=MP3itemSavePath, debug=True)
+    print('\n') 
+ 
 if __name__ == "__main__":
     # execute only if run as a script
     main()
