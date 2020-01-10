@@ -205,7 +205,6 @@ def findTheBloodyTrack(plist=dict(), speculativeDrive='', TRACK='', debug=False)
           break
       if searchresult == '':  
         LOCATION = "NOT FOUND"
-        #sys.exit()
     else:
       FOUND_SUCCESS = True
   elif url_OBJ.scheme.lower().startswith('http'):
@@ -238,7 +237,8 @@ def ffmpegUtilsFinder(picklePath=''):
       print("Please put ffmpeg.exe somewhere on your C: drive..")
       print("You can get it from there: https://ffmpeg.zeranoe.com/builds/")
       print("Install it and restart this program!, Aborting for now..\n")
-      sys.exit()
+      foundFFbin = False
+      return (foundFFbin, ffmpegLocation, ffprobeLocation) 
     if ffmpegLocations.__len__() == 1:
       ffmpegLocation = ffmpegLocations[0]
     else:
@@ -263,12 +263,14 @@ def ffmpegUtilsFinder(picklePath=''):
 
 # -----------------------------------------------------------------------------------------------------------------------
 
-def main():
+def program():
   # Path of current file for options
   picklePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "opts.pkl")
 
   # need to have windows version of ffmpeg utils installed
   foundFFbin, ffmpegLocation, ffprobeLocation = ffmpegUtilsFinder(picklePath=picklePath)
+  if foundFFbin == False:
+    return 1
 
   # Default location of Itunes library, for now I assume it's there
   status , userpath = path_resolver(os.environ['USERPROFILE'])
@@ -280,7 +282,7 @@ def main():
     print("\nError: Itunes Library File '%s' not found\n" % itunesDefaultLibrary)
     print("Or, verify if Itunes has the XML sharing option enabled.\n")
     print("Aborting!\n")
-    sys.exit()
+    return 1
 
   # Loading the XML into a parser for python
   with open(itunesDefaultLibrary, 'rb') as f:
@@ -292,17 +294,27 @@ def main():
     playlists.append(plObj['Name'])
 
   # Selecting
-  selection_menu = SelectionMenu(playlists, title=itunesDefaultLibrary, subtitle='Please Select a Library:')
+  curatedPLS = []
+  c = 0
+  for plsItem in playlists:
+    try:
+      itemStr = "%s  (%s)" % (plist['Playlists'][c]['Name'], len(plist['Playlists'][c]['Playlist Items']))
+    except:
+      itemStr = "%s  (%s)" % (plist['Playlists'][c]['Name'], 0 )
+    curatedPLS.append(itemStr)
+    c += 1
+  
+  #sys.exit()  
+  selection_menu = SelectionMenu(curatedPLS, title=itunesDefaultLibrary, subtitle='Please Select a Library:')
   selection_menu.show()
 
   try:
     SelectedPlaylist = plist['Playlists'][selection_menu.returned_value]['Name']
-    trackList = plist['Playlists'][selection_menu.returned_value]['Playlist Items']
-    #print(plist['Playlists'][selection_menu.returned_value])
-  except:
+    trackList        = plist['Playlists'][selection_menu.returned_value]['Playlist Items']
+  except: 
     # if you're here, means that you've hit exit at the selection menu
-    sys.exit(0)
-
+    return 10
+  
   # Finding a perfect directory name for the re-worked playlist
   PLAYLIST_FOLDER = findDirectoryForFinalPlaylist(SelectedPlaylist=SelectedPlaylist)
   os.mkdir(PLAYLIST_FOLDER)
@@ -361,8 +373,15 @@ def main():
     # Attempt at re-inserting album art if it's available and save it to MP3itemSavePath
     insertAlbumArt(ffmpegLocation=ffmpegLocation, inPath=newFileNamePath, outPath=MP3itemSavePath, debug=True)
     print('\n') 
+  return 0 
+
+def main():
+  while True:
+    exitStatus = program()
+    if exitStatus == 10: 
+      break
+  sys.exit(exitStatus)
  
 if __name__ == "__main__":
     # execute only if run as a script
     main()
-  
