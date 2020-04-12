@@ -287,6 +287,16 @@ def ffmpegUtilsFinder(picklePath=''):
       pickle.dump((ffmpegLocation, ffprobeLocation), open(picklePath + 'l', "wb" ) )
   return (foundFFbin, ffmpegLocation, ffprobeLocation)
 
+def folderSplitName(counter=0, divisor=500, base=1000):
+    rvalue = '000'
+    try:
+      basepad = str(base).count('0') 
+      result  = (counter / divisor) + 1
+      rvalue  = format(result, '0' + str(basepad))
+    except:
+      pass
+    return rvalue
+
 
 # -----------------------------------------------------------------------------------------------------------------------
 
@@ -296,10 +306,19 @@ def program():
 
   # Ask to wipe config or not.
   folder_selected = ''
+  
+  metakeepOpt = ["Keep all metadata", "Just Keep album art"]
+  selectOpt   = SelectionMenu(metakeepOpt, title='Metadata Options:', subtitle='Please Select one:', show_exit_option=False)
+  selectOpt.show()
+
+  folderSlist = ["Split folders : max 500 files per folder", "All in the same folder"]
+  selectSplme = SelectionMenu(folderSlist, title='Folder split Options:', subtitle='Please Select one:', show_exit_option=False)
+  selectSplme.show() 
+
   seloptions = ["Connect to your local Windows itunes Library", "Use a Specific folder", "Re-Scan for ffmpeg binaries"]
   select     = SelectionMenu(seloptions, title='Main Options:', subtitle='Please Select one:')
   select.show()
-
+  
   if select.returned_value == None:
     return 10
   
@@ -309,7 +328,7 @@ def program():
       os.remove(picklePath + 'l')
     except:
       pass
-  
+
   # need to have windows version of ffmpeg utils installed
   foundFFbin, ffmpegLocation, ffprobeLocation = ffmpegUtilsFinder(picklePath=picklePath)
   if foundFFbin == False:
@@ -398,9 +417,10 @@ def program():
       return 10
   
   # Finding a perfect directory name for the re-worked playlist
-  PLAYLIST_FOLDER = findDirectoryForFinalPlaylist(SelectedPlaylist=SelectedPlaylist)
-  os.mkdir(PLAYLIST_FOLDER)
-  print("\n Playlist will be saved to:\n '%s'\n" % PLAYLIST_FOLDER)
+  PLAYLIST_FOLDER_BASE = findDirectoryForFinalPlaylist(SelectedPlaylist=SelectedPlaylist)
+  os.mkdir(PLAYLIST_FOLDER_BASE)
+
+  print("\n Playlist will be saved to:\n '%s'\n" % PLAYLIST_FOLDER_BASE)
   time.sleep(1)
   # an other for loop for every track found to be renamed, copied, checked and prepared  
   counter = 0
@@ -409,12 +429,12 @@ def program():
     counter += 1
     componentTest, TRACK, URIlocation, trackName, trackArtist, trackAlbum = findAllNameComponentsFromTrack(item=item, plist=plist, counter=counter)
     
-    #print("componentTest : ", componentTest)
-    #print("TRACK         : ", TRACK)
-    #print("URIlocation   : ", URIlocation)
-    #print("trackName     : ", trackName)
-    #print("trackArtist   : ", trackArtist)
-    #print("trackAlbum    : ", trackAlbum) 
+    print("componentTest : ", componentTest)
+    print("TRACK         : ", TRACK)
+    print("URIlocation   : ", URIlocation)
+    print("trackName     : ", trackName)
+    print("trackArtist   : ", trackArtist)
+    print("trackAlbum    : ", trackAlbum) 
     #print()
     #time.sleep(2)
     #continue
@@ -432,6 +452,15 @@ def program():
       print(" Can't create File: '%s' Location: '%s' ..skipping.." % (newFileName, LOCATION))
       time.sleep(5)
       continue
+
+    # option to keep use forder splitting or not
+    if selectSplme.returned_value == 0:
+      subfolder = folderSplitName(counter)
+      PLAYLIST_FOLDER             = os.path.join(PLAYLIST_FOLDER_BASE, subfolder)
+      if not os.path.isdir(PLAYLIST_FOLDER):
+        os.mkdir(PLAYLIST_FOLDER)
+    else:
+      PLAYLIST_FOLDER = PLAYLIST_FOLDER_BASE
     
     MP3itemSavePath             = os.path.join(PLAYLIST_FOLDER, newFileName)
     MP3itemSavePathNoExt, exten = os.path.splitext(MP3itemSavePath)
@@ -456,6 +485,11 @@ def program():
     # If this is nor a MP3 file, well, let's convert it
     if formatName.lower() != 'mp3':
       MP3itemSavePath = convertToMP3(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True)
+    
+    # option to keep metadata
+    if selectOpt.returned_value == 0:
+      continue
+
     # Attempt to extract the album art as a JPG file if one is present
     extractAlbumArtJPG(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True)
     # While removing tag we are now saving to a new file name called : newFileNamePath
