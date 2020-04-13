@@ -287,14 +287,18 @@ def ffmpegUtilsFinder(picklePath=''):
       pickle.dump((ffmpegLocation, ffprobeLocation), open(picklePath + 'l', "wb" ) )
   return (foundFFbin, ffmpegLocation, ffprobeLocation)
 
-def folderSplitName(counter=0, divisor=500, base=1000):
+def folderSplitName(counter=0, divisor=500, base=1000, debug=False):
     rvalue = '000'
     try:
       basepad = str(base).count('0') 
-      result  = (counter / divisor) + 1
+      if debug: print(" basepad : %s" % basepad)
+      result  = int(counter / divisor) + 1
+      if debug: print(" result  : %s" % result)
       rvalue  = format(result, '0' + str(basepad))
+      if debug: print(" rvalue : %s" % rvalue)
     except:
       pass
+    if debug: input("")
     return rvalue
 
 
@@ -455,7 +459,8 @@ def program():
 
     # option to keep use forder splitting or not
     if selectSplme.returned_value == 0:
-      subfolder = folderSplitName(counter)
+      subfolder = folderSplitName(counter=counter, debug=False)
+      print("FolderName :: \"%s\"" % subfolder)
       PLAYLIST_FOLDER             = os.path.join(PLAYLIST_FOLDER_BASE, subfolder)
       if not os.path.isdir(PLAYLIST_FOLDER):
         os.mkdir(PLAYLIST_FOLDER)
