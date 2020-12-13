@@ -26,7 +26,7 @@ try:
   from cursesmenu import *
   from cursesmenu.items import *
 except:
-  print('Error: from command prompt as admin : pip install windows-curses')
+  print('Error: from command prompt as admin : pip install windows-curses\n       And/Or DOwnload+install whl from https://www.lfd.uci.edu/~gohlke/pythonlibs/#curses')
   input()
   sys.exit(1)
 
@@ -74,6 +74,44 @@ def get_drives():
   x = ctypes.windll.kernel32.GetLogicalDriveStringsW(buff_size,buff)
   iterable = filter(None, buff.raw.decode('utf-16-le').split(u'\0'))
   return list(iterable)
+
+
+def TKselectionMenu(selectionlist, title='', subtitle="Select something", show_exit_option=False, exitStr="Exit", preselect=0):
+  if show_exit_option == True:
+      allSelectionlist = list(selectionlist)
+      allSelectionlist.append(exitStr)
+  else:
+      allSelectionlist = selectionlist 
+  popupWindow = Tk()
+  v = IntVar()
+  v.set(0) 
+  popupWindow.title(title)
+  # Gets the requested values of the height and widht.
+  windowWidth = popupWindow.winfo_reqwidth()
+  windowHeight = popupWindow.winfo_reqheight()
+  # Gets both half the screen width/height and window width/height
+  positionRight = int(popupWindow.winfo_screenwidth()/2 - windowWidth/2)
+  positionDown = int(popupWindow.winfo_screenheight()/4 - windowHeight/2)
+  # Positions the window in the center of the page.
+  popupWindow.geometry("+{}+{}".format(positionRight, positionDown))
+  def quitloop():
+      global selection
+      selection = v.get()
+      if show_exit_option == True and allSelectionlist[selection] == exitStr:
+          sys.exit()
+      try:
+        popupWindow.destroy()
+      except:
+        pass
+  count = 0
+  Label(popupWindow, text=subtitle, justify = LEFT, padx = 20).grid(row=count + 1, sticky=W)
+  for item in allSelectionlist:
+      Radiobutton(popupWindow, text=item, padx = 10, variable=v, value=count ).grid(row=count + 2, sticky=W)
+      count += 1
+  Button(popupWindow, text = "OK", justify = CENTER, command=quitloop).grid(row=count+3, padx=34, sticky=W)
+  popupWindow.mainloop()
+  quitloop()
+  return selection
 
 def find_ffmpeg_locations(drive='c'):
   locations = glob.glob('%s:/**/ffmpeg.exe' % drive, recursive=True)
@@ -154,14 +192,21 @@ def mp3TagRemover(ffmpegLocation='', inPath='', outPath='', debug=True):
       ffCommand = ffmpegLocation + ' -i "%s" -vn -codec:a copy -map_metadata -1 "%s"' % (inPath, outPath)
       osCommand(ffCommand)
 
-
-  
+def TKaskDirectory(initialdir='', title=''):
+    root = Tk()
+    root.withdraw()
+    folder_selected = filedialog.askdirectory(initialdir=None, title=title )
+    root.destroy()  
+    return folder_selected
 
 def findDirectoryForFinalPlaylist(outDirectory='', SelectedPlaylist=''):
   folderCounter = 0
-  # taking Windows Desktop folder by default if nothing is given as outDirectory
+  try:
+    exists, desktopPath =  path_resolver('Desktop')
+  except:
+    desktopPath = ''
   if outDirectory == '':
-    exist, outDirectory = path_resolver('Desktop')
+    outDirectory = TKaskDirectory(title='Select Destination MP3 Directory', initialdir=desktopPath)
   PLAYLIST_FOLDER=''
   for fnum in range(1,1000):
     folderCounter += 1
@@ -272,8 +317,8 @@ def ffmpegUtilsFinder(picklePath=''):
       if os.path.exists(picklePath + 'l'):
         ffmpegLocation, ffprobeLocation = pickle.load( open(picklePath + 'l', "rb" ) )
       else:
-        selection = SelectionMenu(ffmpegLocations, title='Which one do you choose?', subtitle='Please Select one:')
-        selection.show()
+        selection = Namespace(returned_value="")
+        selection.returned_value = TKselectionMenu(ffmpegLocations, title='Which one do you choose?', subtitle='Please Select one:')
         ffmpegLocation  = ffmpegLocations[selection.returned_value]
         ffprobeLocation = os.path.join(os.path.dirname(ffmpegLocation), "ffprobe.exe")
     if not os.path.exists(ffmpegLocation):
@@ -305,23 +350,21 @@ def folderSplitName(counter=0, divisor=500, base=1000, debug=False):
 # -----------------------------------------------------------------------------------------------------------------------
 
 def program():
+  
   # Path of current file for options
   picklePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "opts.pkl")
 
   # Ask to wipe config or not.
   folder_selected = ''
   
-  metakeepOpt = ["Keep all metadata", "Just Keep album art"]
-  selectOpt   = SelectionMenu(metakeepOpt, title='Metadata Options:', subtitle='Please Select one:', show_exit_option=False)
-  selectOpt.show()
-
-  folderSlist = ["Split folders : max 500 files per folder", "All in the same folder"]
-  selectSplme = SelectionMenu(folderSlist, title='Folder split Options:', subtitle='Please Select one:', show_exit_option=False)
-  selectSplme.show() 
-
-  seloptions = ["Connect to your local Windows itunes Library", "Use a Specific folder", "Re-Scan for ffmpeg binaries"]
-  select     = SelectionMenu(seloptions, title='Main Options:', subtitle='Please Select one:')
-  select.show()
+  selectOpt = Namespace(returned_value="", opts=["Keep all metadata", "Just Keep album art"])
+  selectOpt.returned_value = TKselectionMenu(selectOpt.opts, title='Metadata Options:', subtitle='Please Select one:', show_exit_option=True)
+  
+  selectSplme = Namespace(returned_value="", opts=["Split folders : max 500 files per folder", "All in the same folder"])
+  selectSplme.returned_value = TKselectionMenu(selectSplme.opts, title='Folder split Options:', subtitle='Please Select one:', show_exit_option=True)
+  
+  select = Namespace(returned_value="", opts=["Connect to your local Windows itunes Library", "Use a Specific folder", "Re-Scan for ffmpeg binaries"])
+  select.returned_value = TKselectionMenu(select.opts, title='Main Options:', subtitle='Please Select one:')
   
   if select.returned_value == None:
     return 10
@@ -341,9 +384,8 @@ def program():
     return 0 
   
   if select.returned_value == 1:
-    root = Tk()
-    root.withdraw()
-    folder_selected = filedialog.askdirectory()
+    # ask tkinter not to show the root window
+    folder_selected = TKaskDirectory(title='Select Mucic Directory')
     if not os.path.isdir(folder_selected):
       print("Directory not found: Aborting!\n")
       return 1
@@ -410,8 +452,8 @@ def program():
       curatedPLS.append(itemStr)
       c += 1
     # Terminal Selection
-    selection_menu = SelectionMenu(curatedPLS, title=itunesDefaultLibrary, subtitle='Please Select a Library:')
-    selection_menu.show()
+    selection_menu = Namespace(returned_value="")
+    selection_menu.returned_value = TKselectionMenu(curatedPLS, title=itunesDefaultLibrary, subtitle='Please Select a Library:')
     # Terminal Selection Validation
     try:
       SelectedPlaylist = plist['Playlists'][selection_menu.returned_value]['Name']
@@ -511,13 +553,7 @@ def program():
     print('\n') 
   return 0 
 
-def main():
-  while True:
-    exitStatus = program()
-    if exitStatus == 10: 
-      break
-  sys.exit(exitStatus)
  
 if __name__ == "__main__":
     # execute only if run as a script
-    main()
+    program()
