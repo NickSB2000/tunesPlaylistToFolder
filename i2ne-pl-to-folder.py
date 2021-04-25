@@ -11,39 +11,8 @@ import pickle
 
 from urllib.parse import urlparse, unquote, quote
 from tkinter import filedialog
-from tkinter import *
-
-# Import the necessary packages and give nice errors
-try:
-  import eyed3
-  eyed3.log.setLevel("ERROR")
-except:
-  print('Error: from command prompt as admin : pip install eyeD3')
-  input()
-  sys.exit(1)
-
-try:
-  from cursesmenu import *
-  from cursesmenu.items import *
-except:
-  print('Error: from command prompt as admin : pip install windows-curses\n       And/Or DOwnload+install whl from https://www.lfd.uci.edu/~gohlke/pythonlibs/#curses')
-  input()
-  sys.exit(1)
-
-try:
-  import wget
-except:
-  print('Error: from command prompt as admin : pip3 install wget')
-  input()
-  sys.exit(1)
-
-try:
-  from slugify import slugify
-except:
-  print('Error: from command prompt as admin : pip3 install python-slugify')
-  input()
-  sys.exit(1)
-
+from slugify import *
+import tkinter as tk
 
 #-----------------
 
@@ -53,7 +22,6 @@ FNULL = open(os.devnull, 'w')
 class Namespace:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-
 
 def osCommand(command):
   return subprocess.run(command, stdout=subprocess.PIPE, stderr=FNULL).stdout.decode('utf-8').strip()
@@ -82,9 +50,12 @@ def TKselectionMenu(selectionlist, title='', subtitle="Select something", show_e
       allSelectionlist.append(exitStr)
   else:
       allSelectionlist = selectionlist 
-  popupWindow = Tk()
-  v = IntVar()
-  v.set(0) 
+  from tkinter import font as tkFont
+  popupWindow = tk.Tk()
+  v = tk.IntVar()
+  v.set(1) 
+  buttonfont = tkFont.Font(family='Helvetica', size=16, weight='bold')
+  font = tkFont.Font(family='Helvetica', size=15)
   popupWindow.title(title)
   # Gets the requested values of the height and widht.
   windowWidth = popupWindow.winfo_reqwidth()
@@ -104,11 +75,11 @@ def TKselectionMenu(selectionlist, title='', subtitle="Select something", show_e
       except:
         pass
   count = 0
-  Label(popupWindow, text=subtitle, justify = LEFT, padx = 20).grid(row=count + 1, sticky=W)
+  tk.Label(popupWindow, text=subtitle, justify = tk.LEFT, padx = 20,).grid(row=count + 1, sticky=tk.W)
   for item in allSelectionlist:
-      Radiobutton(popupWindow, text=item, padx = 10, variable=v, value=count ).grid(row=count + 2, sticky=W)
+      tk.Radiobutton(popupWindow, text=item, padx = 10, variable=v, value=count, font=font ).grid(row=count + 2, sticky=tk.W)
       count += 1
-  Button(popupWindow, text = "OK", justify = CENTER, command=quitloop).grid(row=count+3, padx=34, sticky=W)
+  tk.Button(popupWindow, text = "OK", justify = tk.CENTER, font=buttonfont, bg='#77AA77', command=quitloop).grid(row=count+3, padx=34, pady=20, sticky=tk.W)
   popupWindow.mainloop()
   quitloop()
   return selection
@@ -133,24 +104,25 @@ def getFormatInfo(ffprobeLocation='', inPath='', debug=True, dump=False):
     formatName = osCmdOutputPYTHON['format']['format_name']
   except:
     formatName = 'unknown'
-  if debug: print(" Format is : %s" % formatName)
+  if debug: print("Format is     :  %s" % formatName)
   return formatName
 
-def convertToMP3(ffmpegLocation='', inPath='', debug=True):
+def convertToMP3(ffmpegLocation='', inPath='', debug=True, mp3cmdpart="-loglevel quiet -stats -threads 0 -y -ab 320k"):
   winPathDestination    = inPath
   inPathNoExt, exten    = os.path.splitext(inPath)
   inPathMP3             = inPathNoExt + '.mp3'
   winPathDestinationMP3 = inPathMP3
-  if debug: print(" Converting: %s" % inPathMP3)
-  ffCommand = ffmpegLocation + ' -threads 0 -y -i "%s" -ab 320k "%s"' % (winPathDestination, winPathDestinationMP3 )
+  if debug: print("Converting    :  %s\n" % inPathMP3)
+  if debug: print()
+  ffCommand = ffmpegLocation + ' -i "%s" %s "%s"' % (winPathDestination, mp3cmdpart, winPathDestinationMP3 )
+  #if debug: print("\n%s\n" % ffCommand)
   subprocess.run(ffCommand)
-  #osCommand(ffCommand)
   # removing the non-mp3 file
   os.remove(inPath)
   return inPathMP3
 
 def extractAlbumArtJPG(ffmpegLocation='', inPath='', debug=True):
-  if debug: print(" Extracting Album Art..")
+  if debug: print("Extracting Album Art..")
   winPathDestination = inPath
   extrCmd = ffmpegLocation + ' -i "%s" "%s.jpg"' % (winPathDestination, winPathDestination)
   osCommand(extrCmd)
@@ -160,7 +132,7 @@ def insertAlbumArt(ffmpegLocation='', inPath='', outPath='', debug=True):
   if not os.path.exists(art):
     art = outPath + '.jpg'
   if os.path.exists(art):
-    if debug: print(" Retaking Album art only..")
+    if debug: print("Retaking Album art only..")
     finalInsertCmd = ffmpegLocation + ' -i "%s" -i "%s" -map 0:0 -map 1:0 -c copy -id3v2_version 3 -metadata:s:v title="Album cover" -metadata:s:v comment="Cover (front)" "%s"' % (inPath, art, outPath)
     osCommand(finalInsertCmd)
     # removing album art jpg, not needed anymore
@@ -168,7 +140,7 @@ def insertAlbumArt(ffmpegLocation='', inPath='', outPath='', debug=True):
     # removing input path, not needed anymore
     os.remove(inPath)
   else:
-    if debug: print(" No Album art was available: %s\n just renaming file.." % art)
+    if debug: print("No Album art found: %s\njust renaming file.." % art)
     try:
       os.rename(inPath, outPath)    
     except:
@@ -176,7 +148,7 @@ def insertAlbumArt(ffmpegLocation='', inPath='', outPath='', debug=True):
 
 def mp3TagRemover(ffmpegLocation='', inPath='', outPath='', debug=True):
   if debug: 
-    print(" No Tags   : %s" % outPath) 
+    print("No Tags       : %s" % outPath) 
     tagRemoveSuccess = False
     try:
       shutil.copy2(inPath, outPath)
@@ -193,10 +165,10 @@ def mp3TagRemover(ffmpegLocation='', inPath='', outPath='', debug=True):
       osCommand(ffCommand)
 
 def TKaskDirectory(initialdir='', title=''):
-    root = Tk()
-    root.withdraw()
-    folder_selected = filedialog.askdirectory(initialdir=None, title=title )
-    root.destroy()  
+    fdroot = tk.Tk()
+    fdroot.withdraw()
+    folder_selected = tk.filedialog.askdirectory(initialdir=None, title=title )
+    fdroot.destroy()  
     return folder_selected
 
 def findDirectoryForFinalPlaylist(outDirectory='', SelectedPlaylist=''):
@@ -346,11 +318,16 @@ def folderSplitName(counter=0, divisor=500, base=1000, debug=False):
     if debug: input("")
     return rvalue
 
+def screen_clear():
+   if os.name == 'nt':
+      _ = os.system('cls')
+   # for mac and linux(here, os.name is 'posix')
+   else:
+      _ = os.system('clear')
 
 # -----------------------------------------------------------------------------------------------------------------------
 
 def program():
-  
   # Path of current file for options
   picklePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "opts.pkl")
 
@@ -366,6 +343,18 @@ def program():
   select = Namespace(returned_value="", opts=["Connect to your local Windows itunes Library", "Use a Specific folder", "Re-Scan for ffmpeg binaries"])
   select.returned_value = TKselectionMenu(select.opts, title='Main Options:', subtitle='Please Select one:')
   
+  selectMP3bd = Namespace(returned_value="", opts=["CBR 128Kbps", "CBR 320Kbps", "VBR 100-130Kbps (audiobook)", "VBR High quality (music)"])
+  selectMP3bd.returned_value = TKselectionMenu(selectMP3bd.opts, title='MP3 Encoding:', subtitle='Select Default bit rate when defaulting to MP3:')
+  
+  if selectMP3bd.returned_value == 0:
+    mp3cmdpart = "-loglevel quiet -stats -threads 0 -y -ab 128k"
+  elif selectMP3bd.returned_value == 1:
+    mp3cmdpart = "-loglevel quiet -stats -threads 0 -y -ab 320k"
+  elif selectMP3bd.returned_value == 2:
+    mp3cmdpart = "-loglevel quiet -stats -codec:a libmp3lame -qscale:a 6"
+  else:
+    mp3cmdpart = "-loglevel quiet -stats -codec:a libmp3lame -qscale:a 0"
+
   if select.returned_value == None:
     return 10
   
@@ -384,7 +373,6 @@ def program():
     return 0 
   
   if select.returned_value == 1:
-    # ask tkinter not to show the root window
     folder_selected = TKaskDirectory(title='Select Mucic Directory')
     if not os.path.isdir(folder_selected):
       print("Directory not found: Aborting!\n")
@@ -421,8 +409,8 @@ def program():
       plist['Tracks'][trakStr]['Artist']   = audiofile.tag.artist
       plist['Tracks'][trakStr]['Album']    = audiofile.tag.album
       cnterf = cnterf + 1
-
-
+  
+  
   if select.returned_value == 0:  
     # Default location of Itunes library, for now I assume it's there
     status , userpath = path_resolver(os.environ['USERPROFILE'])
@@ -462,6 +450,7 @@ def program():
       # if you're here, means that you've hit exit at the selection menu
       return 10
   
+  
   # Finding a perfect directory name for the re-worked playlist
   PLAYLIST_FOLDER_BASE = findDirectoryForFinalPlaylist(SelectedPlaylist=SelectedPlaylist)
   os.mkdir(PLAYLIST_FOLDER_BASE)
@@ -475,6 +464,7 @@ def program():
     counter += 1
     componentTest, TRACK, URIlocation, trackName, trackArtist, trackAlbum = findAllNameComponentsFromTrack(item=item, plist=plist, counter=counter)
     
+    screen_clear()
     print("componentTest : ", componentTest)
     print("TRACK         : ", TRACK)
     print("URIlocation   : ", URIlocation)
@@ -502,7 +492,7 @@ def program():
     # option to keep use forder splitting or not
     if selectSplme.returned_value == 0:
       subfolder = folderSplitName(counter=counter, debug=False)
-      print("FolderName :: \"%s\"" % subfolder)
+      print("FolderName    : \"%s\"" % subfolder)
       PLAYLIST_FOLDER             = os.path.join(PLAYLIST_FOLDER_BASE, subfolder)
       if not os.path.isdir(PLAYLIST_FOLDER):
         os.mkdir(PLAYLIST_FOLDER)
@@ -516,8 +506,8 @@ def program():
     newFileNamePath		          = os.path.join(PLAYLIST_FOLDER, newFileName)
     
     #print(" playlistf : %s" % PLAYLIST_FOLDER)
-    print(" Copying   : %s" % LOCATION)
-    print(" New file  : %s" % newFileName)
+    print("Copying       :  %s" % LOCATION)
+    print("New file      :  %s" % newFileName)
 
     # If playlist item is actually a real online URL, just download it
     if LOCATION.startswith('http'):
@@ -529,9 +519,9 @@ def program():
       shutil.copy2(LOCATION, MP3itemSavePath)
     # Need to know if this is actually a MP3 file or not.
     formatName = getFormatInfo(ffprobeLocation=ffprobeLocation, inPath=MP3itemSavePath, debug=True)
-    # If this is nor a MP3 file, well, let's convert it
+    # If this is not a MP3 file, well, let's convert it
     if formatName.lower() != 'mp3':
-      MP3itemSavePath = convertToMP3(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True)
+      MP3itemSavePath = convertToMP3(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, debug=True, mp3cmdpart=mp3cmdpart)
     
     # option to keep metadata
     if selectOpt.returned_value == 0:
@@ -542,7 +532,7 @@ def program():
     # While removing tag we are now saving to a new file name called : newFileNamePath
     mp3TagRemover(ffmpegLocation=ffmpegLocation, inPath=MP3itemSavePath, outPath=newFileNamePath, debug=True)
     # removing the original tagged MP3 file
-    print(" Removing  : %s" % MP3itemSavePath, end='')
+    print("Removing      : %s" % MP3itemSavePath, end='')
     try:
       os.remove(MP3itemSavePath)
       print(" : Done")
@@ -557,3 +547,4 @@ def program():
 if __name__ == "__main__":
     # execute only if run as a script
     program()
+    input("Press Enter to continue...")
