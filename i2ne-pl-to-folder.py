@@ -346,14 +346,15 @@ def program():
   selectMP3bd = Namespace(returned_value="", opts=["CBR 128Kbps", "CBR 320Kbps", "VBR 100-130Kbps (audiobook)", "VBR High quality (music)"])
   selectMP3bd.returned_value = TKselectionMenu(selectMP3bd.opts, title='MP3 Encoding:', subtitle='Select Default bit rate when defaulting to MP3:')
   
+  mp3Globalopt = "-loglevel quiet -stats -threads 0"
   if selectMP3bd.returned_value == 0:
-    mp3cmdpart = "-loglevel quiet -stats -threads 0 -y -ab 128k"
+    mp3cmdpart = "%s -y -ab 128k" % mp3Globalopt
   elif selectMP3bd.returned_value == 1:
-    mp3cmdpart = "-loglevel quiet -stats -threads 0 -y -ab 320k"
+    mp3cmdpart = "%s -y -ab 320k" % mp3Globalopt
   elif selectMP3bd.returned_value == 2:
-    mp3cmdpart = "-loglevel quiet -stats -codec:a libmp3lame -qscale:a 6"
+    mp3cmdpart = "%s -codec:a libmp3lame -qscale:a 6" % mp3Globalopt
   else:
-    mp3cmdpart = "-loglevel quiet -stats -codec:a libmp3lame -qscale:a 0"
+    mp3cmdpart = "%s -codec:a libmp3lame -qscale:a 0" % mp3Globalopt
 
   if select.returned_value == None:
     return 10
