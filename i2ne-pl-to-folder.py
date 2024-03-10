@@ -11,7 +11,13 @@ import pickle
 
 from urllib.parse import urlparse, unquote, quote
 from tkinter import filedialog
-from slugify import *
+
+try:
+ from slugify import *
+except:
+  input("\nPlease install slugify using 'pip' this way:\n pip install python-slugify \n\nPress Enter to close this window...\n") 
+  sys.exit()
+
 import tkinter as tk
 
 #-----------------
@@ -53,7 +59,7 @@ def TKselectionMenu(selectionlist, title='', subtitle="Select something", show_e
   from tkinter import font as tkFont
   popupWindow = tk.Tk()
   v = tk.IntVar()
-  v.set(1) 
+  v.set(preselect) 
   buttonfont = tkFont.Font(family='Helvetica', size=16, weight='bold')
   font = tkFont.Font(family='Helvetica', size=15)
   popupWindow.title(title)
@@ -77,15 +83,26 @@ def TKselectionMenu(selectionlist, title='', subtitle="Select something", show_e
   count = 0
   tk.Label(popupWindow, text=subtitle, justify = tk.LEFT, padx = 20,).grid(row=count + 1, sticky=tk.W)
   for item in allSelectionlist:
-      tk.Radiobutton(popupWindow, text=item, padx = 10, variable=v, value=count, font=font ).grid(row=count + 2, sticky=tk.W)
+      tk.Radiobutton(popupWindow, 
+                     text=item, 
+                     padx = 10, 
+                     variable=v, 
+                     value=count, 
+                     font=font
+                     ).grid(row=count + 2, sticky=tk.W)
       count += 1
   tk.Button(popupWindow, text = "OK", justify = tk.CENTER, font=buttonfont, bg='#77AA77', command=quitloop).grid(row=count+3, padx=34, pady=20, sticky=tk.W)
+  popupWindow.attributes('-topmost',True)
   popupWindow.mainloop()
   quitloop()
   return selection
 
 def find_ffmpeg_locations(drive='c'):
-  locations = glob.glob('%s:/**/ffmpeg.exe' % drive, recursive=True)
+  locations = []
+  for filefound in glob.glob(f'{drive}:/**/ffmpeg.exe', recursive=True):
+    print(filefound)
+    locations.append(filefound)
+  # locations = glob.glob(f'{drive}:/**/ffmpeg.exe', recursive=True)
   approvedl = []
   for lfile in locations:
     fprobefile = os.path.join(os.path.dirname(lfile), "ffprobe.exe")
@@ -115,7 +132,7 @@ def convertToMP3(ffmpegLocation='', inPath='', debug=True, mp3cmdpart="-loglevel
   if debug: print("Converting    :  %s\n" % inPathMP3)
   if debug: print()
   ffCommand = ffmpegLocation + ' -i "%s" %s "%s"' % (winPathDestination, mp3cmdpart, winPathDestinationMP3 )
-  #if debug: print("\n%s\n" % ffCommand)
+  # if debug: print("\n%s\n" % ffCommand)
   subprocess.run(ffCommand)
   # removing the non-mp3 file
   os.remove(inPath)
@@ -268,15 +285,34 @@ def ffmpegUtilsFinder(picklePath=''):
     gotsome = False
     if os.path.exists(picklePath):
       try:
-        ffmpegLocations = pickle.load( open(picklePath, "rb" ) )
-        gotsome = True
+        with open(picklePath, "rb" ) as fd:
+          ffmpegLocations = pickle.load(fd)
+        truePaths = []
+        invalidFound = False
+        for path in ffmpegLocations:
+          if os.path.exists(path):
+            print(f"Found ffmpeg Binary in existing preference list: {path}")
+            truePaths.append(path)
+          else:
+            print(f"Invalid ffmpeg Path in existing preference list: {path}")
+            invalidFound = True
+        ffmpegLocations = truePaths
+        if ffmpegLocations.__len__() == 0:
+          gotsome = False
+        else:
+          gotsome = True
+          if invalidFound == True:
+            print("Since I found some invalid path(s), re-saving pickle with accurate information... ")
+            with open(picklePath, "wb" ) as fd:
+              pickle.dump(ffmpegLocations, fd )
       except:
         pass
     if gotsome == False:
       print("Looking for 'ffmpeg.exe' / 'ffprobe.exe' on your C: Drive, one moment...")
       ffmpegLocations = find_ffmpeg_locations()
       if not os.path.exists(picklePath):
-        pickle.dump(ffmpegLocations, open(picklePath, "wb" ) )
+        with open(picklePath, "wb" ) as fd:
+          pickle.dump(ffmpegLocations, fd )
     if ffmpegLocations.__len__() == 0:
       print("Please put ffmpeg.exe somewhere on your C: drive..")
       print("You can get it from there: https://ffmpeg.zeranoe.com/builds/")
@@ -287,22 +323,42 @@ def ffmpegUtilsFinder(picklePath=''):
       ffmpegLocation = ffmpegLocations[0]
     else:
       if os.path.exists(picklePath + 'l'):
+        print(f"FFMpeg binary file found: {picklePath + 'l'}")
         ffmpegLocation, ffprobeLocation = pickle.load( open(picklePath + 'l', "rb" ) )
-      else:
         selection = Namespace(returned_value="")
-        selection.returned_value = TKselectionMenu(ffmpegLocations, title='Which one do you choose?', subtitle='Please Select one:')
+        try:
+          defaultIndex = ffmpegLocations.index(ffmpegLocation)
+        except:
+          defaultIndex = 0
+        selection.returned_value = TKselectionMenu(ffmpegLocations, 
+                                                   title='Which one do you choose?', 
+                                                   subtitle=f'Please Select one: (default was {defaultIndex + 1})',
+                                                   preselect=defaultIndex)
+        ffmpegLocation  = ffmpegLocations[selection.returned_value]
+        ffprobeLocation = os.path.join(os.path.dirname(ffmpegLocation), "ffprobe.exe")
+      else:
+        print(f"FFMpeg binary file Not found: {picklePath + 'l'}")
+        selection = Namespace(returned_value="")
+        selection.returned_value = TKselectionMenu(ffmpegLocations, 
+                                                   title='Which one do you choose?', 
+                                                   subtitle='Please Select one:')
         ffmpegLocation  = ffmpegLocations[selection.returned_value]
         ffprobeLocation = os.path.join(os.path.dirname(ffmpegLocation), "ffprobe.exe")
     if not os.path.exists(ffmpegLocation):
       print(" Okay, well, seems like that ffmpeg binary is not there, try again..")
-      os.remove(picklePath)
+      os.remove(picklePath + 'l')
+      foundFFbin = False
     elif not os.path.exists(ffprobeLocation):
       print(" Okay, well, seems like that ffprobe binary is not included, try again..")
-      os.remove(picklePath)
-    else:
+      os.remove(picklePath + 'l')
+      foundFFbin = False
+    elif os.path.exists(ffprobeLocation) and os.path.exists(ffmpegLocation):
       foundFFbin = True
-      pickle.dump((ffmpegLocation, ffprobeLocation), open(picklePath + 'l', "wb" ) )
+      print(f"Saving ffmpeg location as '{ffmpegLocation}'")
+      with open(picklePath + 'l', "wb" ) as fd:
+        pickle.dump((ffmpegLocation, ffprobeLocation), fd )
   return (foundFFbin, ffmpegLocation, ffprobeLocation)
+
 
 def folderSplitName(counter=0, divisor=500, base=1000, debug=False):
     rvalue = '000'
@@ -330,17 +386,24 @@ def screen_clear():
 def program():
   # Path of current file for options
   picklePath = os.path.join(os.path.dirname(os.path.realpath(__file__)), "opts.pkl")
+  picklePathffmpeg = picklePath + 'l'
 
   # Ask to wipe config or not.
   folder_selected = ''
   
+  # need to have windows version of ffmpeg utils installed
+  foundFFbin, ffmpegLocation, ffprobeLocation = ffmpegUtilsFinder(picklePath=picklePath)
+  if foundFFbin == False:
+    sys.exit()
+
   selectOpt = Namespace(returned_value="", opts=["Keep all metadata", "Just Keep album art"])
   selectOpt.returned_value = TKselectionMenu(selectOpt.opts, title='Metadata Options:', subtitle='Please Select one:', show_exit_option=True)
-  
+  print(selectOpt.returned_value)
+
   selectSplme = Namespace(returned_value="", opts=["Split folders : max 500 files per folder", "All in the same folder"])
   selectSplme.returned_value = TKselectionMenu(selectSplme.opts, title='Folder split Options:', subtitle='Please Select one:', show_exit_option=True)
   
-  select = Namespace(returned_value="", opts=["Connect to your local Windows itunes Library", "Use a Specific folder", "Re-Scan for ffmpeg binaries"])
+  select = Namespace(returned_value="", opts=["Connect to your local Windows itunes Library", "Use a Specific folder"])
   select.returned_value = TKselectionMenu(select.opts, title='Main Options:', subtitle='Please Select one:')
   
   selectMP3bd = Namespace(returned_value="", opts=["CBR 128Kbps", "CBR 320Kbps", "VBR 100-130Kbps (audiobook)", "VBR High quality (music)"])
@@ -359,19 +422,6 @@ def program():
   if select.returned_value == None:
     return 10
   
-  if select.returned_value == 2:
-    try:
-      os.remove(picklePath)
-      os.remove(picklePath + 'l')
-    except:
-      pass
-
-  # need to have windows version of ffmpeg utils installed
-  foundFFbin, ffmpegLocation, ffprobeLocation = ffmpegUtilsFinder(picklePath=picklePath)
-  if foundFFbin == False:
-    return 1
-  if select.returned_value == 2:
-    return 0 
   
   if select.returned_value == 1:
     folder_selected = TKaskDirectory(title='Select Mucic Directory')
@@ -383,7 +433,15 @@ def program():
     plist = dict()
     plist['Tracks'] = dict()
     trackList = []
-    search = glob.glob('%s/**' % folder_selected, recursive=True)
+
+    selectFileSort = Namespace(returned_value="", opts=["Alphabetical order", "Date Ordered"])
+    selectFileSort.returned_value = TKselectionMenu(selectFileSort.opts, title='File Ordering:', subtitle='Select File Search ordering:')
+    
+    if selectFileSort.returned_value == 1:
+      search = sorted(glob.glob('%s/**' % folder_selected, recursive=True), key=os.path.getmtime)
+    else:
+      search = glob.glob('%s/**' % folder_selected, recursive=True)
+    
     cnterf = 0
     for itemsearch in search: 
       if os.path.isdir(itemsearch): continue
